@@ -48,6 +48,7 @@ Variáveis:
 | `IG_USER_ID` | `17841448692415302` | ID da conta @humordeporco |
 | `IG_ACCESS_TOKEN` | Painel do Meta (token de curta duração, ~1h) | Só é lido ao clicar em "Conectar" em Configurações |
 | `IG_GRAPH_API_VERSION` | opcional, padrão `v25.0` | Ajuste se a Meta depreciar a versão. Só afeta endpoints versionados (container, publish, insights, conta) — os de token (exchange/refresh) nunca levam versão na URL |
+| `APP_USERNAME` / `APP_PASSWORD` | você escolhe | Login do Basic Auth que protege o app inteiro — veja seção 8 |
 | `CRON_SECRET` | gere um valor aleatório qualquer | Protege as rotas `/api/cron/*` |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | opcional (bot já usado em outro projeto) | Deixe em branco para desativar o alerta sem erro |
 
@@ -109,13 +110,26 @@ Qualquer falha na troca que **não** seja esse erro específico de tipo de token
 ## 7. Deploy na Vercel
 
 1. Suba o repositório (GitHub/GitLab/Bitbucket) e importe na Vercel, ou `vercel deploy` pela CLI.
-2. Em **Project Settings > Environment Variables**, adicione todas as variáveis da seção 2 (Production e Preview).
+2. Em **Project Settings > Environment Variables**, adicione todas as variáveis da seção 2 (Production e Preview) — incluindo `APP_USERNAME`/`APP_PASSWORD` (seção 8) e `CRON_SECRET`.
 3. Faça o deploy e anote a URL pública (ex: `https://posteiflow.vercel.app`).
 4. No SQL Editor do Supabase, abra `supabase/migrations/0002_cron_jobs.sql`, troque `<APP_URL>` pela URL do passo 3 e `<CRON_SECRET>` pelo mesmo valor da env var, e rode.
 5. Confirme os jobs: `select * from cron.job;` no SQL Editor.
-6. Acesse `/settings` no app publicado e clique em "Conectar" para gravar o token de longa duração.
+6. Acesse `/settings` no app publicado (vai pedir o login do Basic Auth primeiro) e clique em "Conectar" para gravar o token de longa duração.
 
 Se depois trocar a URL do deploy (novo domínio), rode `select cron.unschedule('posteiflow-scheduler');` (e os outros dois nomes de job) e reagende com a URL nova.
+
+## 8. Autenticação (Basic Auth)
+
+O app é publicado numa URL pública da Vercel, sem nenhum controle de acesso próprio — então todo o app (páginas e API, exceto `/api/cron/*`) fica atrás de HTTP Basic Auth simples, implementado em [`src/proxy.ts`](src/proxy.ts).
+
+**Por que `proxy.ts` e não `middleware.ts`:** no Next.js 16 (a versão deste projeto), o arquivo `middleware.ts` foi renomeado para `proxy.ts` (e a função exportada de `middleware` para `proxy`) — `middleware.ts` está deprecado e pode não ser nem reconhecido. Funcionalmente é a mesma coisa que "middleware" em versões anteriores do Next.js.
+
+Como funciona:
+- Protege **todas** as rotas exceto `/api/cron/*` (que já usa `CRON_SECRET` via Bearer token — não faz sentido pedir duas autenticações diferentes na mesma rota) e os assets internos do Next (`_next/static`, `_next/image`, `favicon.ico`).
+- Sem `APP_USERNAME`/`APP_PASSWORD` configurados, o proxy nega acesso a tudo (fail closed) — nunca libera o app por engano por falta de configuração.
+- Isso vale em produção **e** em `next dev` — depois de configurar essas duas env vars, o navegador vai pedir login também ao rodar localmente.
+
+**Para trocar a senha:** gere um novo valor (ex: `node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))"`), atualize `APP_PASSWORD` no `.env.local` e nas Environment Variables da Vercel (redeploy necessário para produção), e informe o usuário/senha novos pra quem precisar acessar. Não há usuários múltiplos nem hash de senha — é literalmente um único login fixo comparado por igualdade, adequado só porque é uso pessoal.
 
 ## Limitações conhecidas do v1
 
