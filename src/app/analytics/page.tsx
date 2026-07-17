@@ -57,6 +57,12 @@ export default async function AnalyticsPage() {
             {days.map((day) => (
               <TableRow key={day.id}>
                 <TableCell className="whitespace-nowrap">
+                  {/* stat_date é uma DATE pura (yyyy-MM-dd), não timestamptz — o parse e o
+                      format abaixo usam o mesmo timezone do runtime e se cancelam, então
+                      isto é seguro sem formatBrasilia (verificado com TZ=UTC). Não trocar
+                      por formatBrasilia sem testar: um DATE puro não representa um instante
+                      específico, então converter timezone aqui pode na verdade introduzir
+                      um deslocamento de dia em vez de corrigir um. */}
                   {format(new Date(`${day.stat_date}T00:00:00`), "PPP", { locale: ptBR })}
                 </TableCell>
                 <TableCell className="text-right">

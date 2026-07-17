@@ -1,5 +1,4 @@
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatBrasilia } from "@/lib/format-date";
 import {
   Table,
   TableBody,
@@ -61,9 +60,7 @@ export default async function MetricsPage() {
                 <TableRow key={post.id}>
                   <TableCell className="max-w-56 truncate">{post.video.filename}</TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {post.published_at
-                      ? format(new Date(post.published_at), "PPPp", { locale: ptBR })
-                      : "—"}
+                    {post.published_at ? formatBrasilia(post.published_at, "PPPp") : "—"}
                   </TableCell>
                   <TableCell className="text-right">{(m?.views ?? 0).toLocaleString("pt-BR")}</TableCell>
                   <TableCell className="text-right">{(m?.likes ?? 0).toLocaleString("pt-BR")}</TableCell>

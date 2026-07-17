@@ -1,5 +1,3 @@
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { CheckCircle2, Circle, Users, Video as VideoIcon, Eye, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { getActiveInstagramAccount } from "@/lib/account";
 import { getAccountInfo } from "@/lib/instagram";
 import { getLatestAnalyticsMap, sumMetrics } from "@/lib/metrics";
+import { formatBrasilia, getBrasiliaDateString, startOfBrasiliaDay } from "@/lib/format-date";
 import type { Post, Video } from "@/types/db";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +15,12 @@ type PostWithVideo = Post & { video: Video };
 
 async function getDashboardData() {
   const account = await getActiveInstagramAccount();
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const tomorrowStr = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // Dia civil de Brasília, não UTC — consistente com o bucketing em
+  // analytics-collector.ts (senão "Seguidores hoje" buscaria account_stats_daily
+  // pela data errada durante parte do dia).
+  const todayStr = getBrasiliaDateString();
+  const dayStart = startOfBrasiliaDay(todayStr);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
   let followersCount: number | null = null;
   if (account && (!account.token_expires_at || new Date(account.token_expires_at) > new Date())) {
@@ -57,8 +60,8 @@ async function getDashboardData() {
   const { data: todayPosts } = await supabaseAdmin
     .from("posts")
     .select("*, video:videos(*)")
-    .gte("scheduled_datetime", `${todayStr}T00:00:00.000Z`)
-    .lt("scheduled_datetime", `${tomorrowStr}T00:00:00.000Z`)
+    .gte("scheduled_datetime", dayStart.toISOString())
+    .lt("scheduled_datetime", dayEnd.toISOString())
     .order("scheduled_datetime", { ascending: true });
 
   return {
@@ -123,7 +126,7 @@ export default async function DashboardPage() {
               <div>
                 <p className="font-medium">{data.nextPost.video.filename}</p>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(data.nextPost.scheduled_datetime), "PPPp", { locale: ptBR })}
+                  {formatBrasilia(data.nextPost.scheduled_datetime, "PPPp")}
                 </p>
               </div>
               <Badge variant="secondary">{data.nextPost.status}</Badge>
@@ -155,7 +158,7 @@ export default async function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">
-                      {format(new Date(post.scheduled_datetime), "HH:mm")}
+                      {formatBrasilia(post.scheduled_datetime, "HH:mm")}
                     </span>
                     <Badge variant={post.status === "publicado" ? "default" : post.status === "erro" ? "destructive" : "secondary"}>
                       {post.status}

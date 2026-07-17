@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatBrasilia } from "@/lib/format-date";
 import { RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -90,7 +89,7 @@ export function PostList({
           <TableRow key={post.id}>
             <TableCell className="max-w-48 truncate">{post.video.filename}</TableCell>
             <TableCell className="whitespace-nowrap">
-              {format(new Date(post.scheduled_datetime), "PPPp", { locale: ptBR })}
+              {formatBrasilia(post.scheduled_datetime, "PPPp")}
             </TableCell>
             <TableCell>
               <Badge variant={statusVariant(post.status)}>{post.status}</Badge>

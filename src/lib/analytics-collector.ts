@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseAdmin } from "./supabase";
 import { getActiveInstagramAccount } from "./account";
 import { getAccountInfo, getMediaInsights, InstagramApiError } from "./instagram";
+import { getBrasiliaDateString, startOfBrasiliaDay } from "./format-date";
 
 const MONITORED_WINDOW_DAYS = 30; // coleta métricas de posts publicados nos últimos N dias
 
@@ -64,9 +65,11 @@ export async function collectAnalyticsTick(): Promise<AnalyticsRunSummary> {
 async function updateTodayAccountStats(igUserId: string, accessToken: string) {
   const info = await getAccountInfo(igUserId, accessToken);
 
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const tomorrowStr = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // Dia civil de Brasília, não UTC — publicações entre 21h e 23h59 em
+  // Brasília já seriam "amanhã" em UTC e cairiam no bucket errado.
+  const todayStr = getBrasiliaDateString();
+  const dayStart = startOfBrasiliaDay(todayStr);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
   const { data: prevRow } = await supabaseAdmin
     .from("account_stats_daily")
@@ -80,8 +83,8 @@ async function updateTodayAccountStats(igUserId: string, accessToken: string) {
     .from("posts")
     .select("id")
     .eq("status", "publicado")
-    .gte("published_at", `${todayStr}T00:00:00.000Z`)
-    .lt("published_at", `${tomorrowStr}T00:00:00.000Z`);
+    .gte("published_at", dayStart.toISOString())
+    .lt("published_at", dayEnd.toISOString());
 
   let totalViews = 0;
   let totalLikes = 0;

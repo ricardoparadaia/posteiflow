@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { formatBrasilia } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -152,17 +151,13 @@ export function InstagramSettings() {
 
             <dt className="text-muted-foreground">Expira em</dt>
             <dd className={expiresSoon ? "text-destructive" : undefined}>
-              {data.token_expires_at
-                ? format(new Date(data.token_expires_at), "PPPp", { locale: ptBR })
-                : "—"}
+              {data.token_expires_at ? formatBrasilia(data.token_expires_at, "PPPp") : "—"}
               {data.token_source === "fallback_unverified" ? " (estimativa)" : ""}
             </dd>
 
             <dt className="text-muted-foreground">Última renovação</dt>
             <dd>
-              {data.token_last_refreshed_at
-                ? format(new Date(data.token_last_refreshed_at), "PPPp", { locale: ptBR })
-                : "—"}
+              {data.token_last_refreshed_at ? formatBrasilia(data.token_last_refreshed_at, "PPPp") : "—"}
             </dd>
 
             <dt className="text-muted-foreground">Origem do token</dt>
