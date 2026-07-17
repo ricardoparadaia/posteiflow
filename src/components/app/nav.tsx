@@ -5,8 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  Library,
-  CalendarClock,
+  ListVideo,
   BarChart3,
   LineChart,
   Settings,
@@ -14,8 +13,7 @@ import {
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/library", label: "Biblioteca", icon: Library },
-  { href: "/schedule", label: "Agendar", icon: CalendarClock },
+  { href: "/queue", label: "Fila", icon: ListVideo },
   { href: "/metrics", label: "Métricas", icon: BarChart3 },
   { href: "/analytics", label: "Analytics", icon: LineChart },
   { href: "/settings", label: "Configuração", icon: Settings },

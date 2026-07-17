@@ -11,7 +11,7 @@ A Vercel é serverless — não há processo contínuo rodando em background. O 
 - **Gatilho:** um job `pg_cron` no Postgres do Supabase chama, a cada minuto, uma API route (`/api/cron/scheduler`) via `pg_net`, protegida por um `CRON_SECRET`. Isso independe do plano da Vercel (não precisa do Pro).
 - **Execução em passos curtos:** para não estourar o timeout de uma função serverless, o worker nunca fica em polling bloqueante. Cada post agendado avança no máximo um passo por minuto na máquina de estados:
   `pendente` → (cria o container REELS) → `processando` → (container `FINISHED`, publica) → `publicado`, ou `erro` se algo falhar.
-- **`erro` é um estado terminal** — o scheduler nunca reprocessa um post em erro sozinho (sem retry automático em loop). Se quiser tentar de novo, use o botão "Reprocessar" na tela Agendar (ele volta o post para `pendente`, limpando `ig_container_id`/`ig_media_id`/`error_message`, mantendo o horário original).
+- **`erro` é um estado terminal** — o scheduler nunca reprocessa um post em erro sozinho (sem retry automático em loop). Se quiser tentar de novo, use o botão "Reprocessar" na tela Fila (ele volta o post para `pendente`, limpando `ig_container_id`/`ig_media_id`/`error_message`, mantendo o horário original).
 - **Timeout de container travado:** se um post fica em `processando` por mais de 30 minutos sem o container sair de `IN_PROGRESS` do lado do Instagram, ele é marcado `erro` automaticamente (ajustável via `PROCESSING_TIMEOUT_MS` em `scheduler.ts`).
 - **Lock contra ticks sobrepostos:** cada execução reivindica um lock atômico (tabela `scheduler_lock`, janela de 55s) antes de processar qualquer post — se um tick anterior ainda estiver rodando quando o próximo disparar, o novo tick não faz nada e sai (visível como `skipped` no retorno da rota).
 - Veja o código em [`src/lib/scheduler.ts`](src/lib/scheduler.ts).
@@ -81,8 +81,7 @@ npm run dev
 Abra [http://localhost:3000](http://localhost:3000).
 
 - **Configuração:** clique em "Conectar" para obter um token de longa duração a partir do `IG_ACCESS_TOKEN` do `.env`, salvo em `instagram_accounts` (veja seção 6 para os detalhes de como isso funciona).
-- **Biblioteca:** envie um vídeo — a duração/resolução/thumbnail são extraídas no próprio browser.
-- **Agendar:** escolha vídeo, data e hora.
+- **Fila:** arraste vários vídeos de uma vez (upload em paralelo, com duração/resolução/thumbnail extraídas no próprio browser), defina legenda padrão + horário inicial/intervalo, ajuste exceções por vídeo, e agende tudo com "Agendar Todos". Vídeos enviados e ainda não agendados ficam salvos e reaparecem na tela se você fechar o navegador antes de terminar. Publicados somem da lista no dia seguinte (Brasília).
 - **Scheduler em dev:** como o `pg_cron` só faz sentido depois do deploy (precisa de uma URL pública), teste o tick manualmente:
 
   ```bash
