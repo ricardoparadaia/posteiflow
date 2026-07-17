@@ -147,16 +147,16 @@ export default async function DashboardPage() {
           ) : (
             <ul className="flex flex-col divide-y divide-border">
               {data.todayPosts.map((post) => (
-                <li key={post.id} className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-2">
+                <li key={post.id} className="flex items-center justify-between gap-2 py-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     {post.status === "publicado" ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
                     ) : (
-                      <Circle className="h-4 w-4 text-muted-foreground" />
+                      <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
                     )}
-                    <span className="text-sm">{post.video.filename}</span>
+                    <span className="truncate text-sm">{post.video.filename}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     <span className="text-sm text-muted-foreground">
                       {formatBrasilia(post.scheduled_datetime, "HH:mm")}
                     </span>
