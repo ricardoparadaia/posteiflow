@@ -62,6 +62,15 @@ function extractVideoMeta(file: File): Promise<VideoMeta> {
 
 type Status = "idle" | "reading" | "uploading" | "saving" | "error";
 
+// Formatos aceitos pela Content Publishing API do Instagram para Reels
+// (container .mp4 ou .mov, codec H.264/AAC).
+const ALLOWED_EXTENSIONS = [".mp4", ".mov"];
+
+function hasAllowedExtension(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 export function VideoUploadForm() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,6 +80,17 @@ export function VideoUploadForm() {
   const [error, setError] = useState<string | null>(null);
 
   const busy = status === "reading" || status === "uploading" || status === "saving";
+
+  function handleFileChange(selected: File | null) {
+    setError(null);
+    if (selected && !hasAllowedExtension(selected.name)) {
+      setError(`Formato não suportado. Envie um vídeo ${ALLOWED_EXTENSIONS.join(" ou ")}.`);
+      setFile(null);
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+    setFile(selected);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -130,11 +150,12 @@ export function VideoUploadForm() {
         <Input
           id="video-file"
           type="file"
-          accept="video/*"
+          accept="video/mp4,video/quicktime,.mp4,.mov"
           ref={inputRef}
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
           disabled={busy}
         />
+        <p className="text-xs text-muted-foreground">Formatos aceitos: MP4 ou MOV.</p>
       </div>
       <div className="grid gap-2">
         <Label htmlFor="caption">Legenda</Label>

@@ -91,7 +91,10 @@ export async function runSchedulerTick(): Promise<SchedulerRunSummary> {
           continue;
         }
 
-        const { status_code } = await getContainerStatus(post.ig_container_id, accessToken);
+        const { status_code, status: statusDetail } = await getContainerStatus(
+          post.ig_container_id,
+          accessToken
+        );
 
         if (status_code === "FINISHED") {
           const { quotaUsage, quotaTotal } = await getPublishingLimit(igUserId, accessToken);
@@ -116,7 +119,8 @@ export async function runSchedulerTick(): Promise<SchedulerRunSummary> {
           summary.stillProcessing++;
         } else {
           // EXPIRED ou ERROR
-          await markError(post.id, `Instagram retornou status "${status_code}" para o container`);
+          const detail = statusDetail ? ` — ${statusDetail}` : "";
+          await markError(post.id, `Instagram retornou status "${status_code}" para o container${detail}`);
           summary.errors++;
         }
       } catch (err) {

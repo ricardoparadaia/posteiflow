@@ -143,13 +143,18 @@ export async function createReelsContainer(
   );
 }
 
-/** Consulta o status de processamento de um container de mídia. */
+/**
+ * Consulta o status de processamento de um container de mídia. Pede também o
+ * campo "status" (texto livre da Meta) além de "status_code" — quando o
+ * container falha (ex: vídeo em codec não suportado como HEVC/H.265 em vez
+ * de H.264), esse texto costuma trazer o motivo, em vez de só "ERROR".
+ */
 export async function getContainerStatus(
   containerId: string,
   accessToken: string
 ): Promise<{ status_code: ContainerStatus; status?: string }> {
   return igRequest(`${GRAPH_VERSION}/${containerId}`, {
-    fields: "status_code",
+    fields: "status_code,status",
     access_token: accessToken,
   });
 }
