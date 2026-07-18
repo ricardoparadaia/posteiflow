@@ -40,11 +40,14 @@ select cron.schedule(
   $$
 );
 
--- 2) Coleta de métricas — roda a cada 2 horas
+-- 2) Coleta de métricas — roda a cada 1 hora
 --    Busca views/likes/comments/shares dos Reels publicados recentes
+--    (era a cada 2h; alterado via `cron.alter_job` em produção — ver histórico
+--    do repo se precisar do valor anterior. Se este arquivo for rodado do zero
+--    num projeto novo, já agenda direto com a frequência atual.)
 select cron.schedule(
   'posteiflow-analytics',
-  '0 */2 * * *',
+  '0 * * * *',
   $$
   select net.http_post(
     url := '<APP_URL>/api/cron/analytics',
