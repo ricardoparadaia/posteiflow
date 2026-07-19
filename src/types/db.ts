@@ -68,6 +68,8 @@ export interface AnalyticsRecord {
   likes: number;
   comments: number;
   shares: number;
+  reach: number;
+  saved: number;
 }
 
 export interface AccountStatsDaily {
@@ -79,5 +81,7 @@ export interface AccountStatsDaily {
   total_views: number;
   total_likes: number;
   total_comments: number;
+  total_reach: number;
+  total_saves: number;
   collected_at: string;
 }

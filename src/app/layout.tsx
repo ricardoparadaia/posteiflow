@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppNav, MobileNavBar } from "@/components/app/nav";
+import { capitalize } from "@/lib/utils";
 
-const geistSans = Geist({
+const inter = Inter({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -23,22 +25,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const username = process.env.APP_USERNAME ? capitalize(process.env.APP_USERNAME) : null;
+
   return (
-    <html
-      lang="pt-BR"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="pt-BR" className={`${inter.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-background text-foreground">
-        <MobileNavBar />
+        <MobileNavBar username={username} />
         <div className="flex min-h-screen">
-          <aside className="hidden w-56 shrink-0 border-r border-border md:block">
-            <div className="px-4 py-4">
-              <span className="text-lg font-semibold">PosteiFlow</span>
-              <p className="text-xs text-muted-foreground">@humordeporco</p>
-            </div>
-            <AppNav />
+          <aside className="hidden w-[236px] shrink-0 border-r border-border bg-card md:sticky md:top-0 md:block md:h-screen">
+            <AppNav username={username} />
           </aside>
-          <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
+          <main className="min-w-0 flex-1 p-4 pt-[76px] md:p-8 md:pt-8">{children}</main>
         </div>
       </body>
     </html>

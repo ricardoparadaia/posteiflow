@@ -2,11 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
+// Pares ícone/fundo exatos do handoff de design (um por card de stat).
 const ACCENT_CLASSES = {
-  violet: "bg-violet-100 text-violet-600",
-  emerald: "bg-emerald-100 text-emerald-600",
-  sky: "bg-sky-100 text-sky-600",
-  amber: "bg-amber-100 text-amber-600",
+  violet: "bg-[#EDE9FE] text-[#7C5CFC]",
+  emerald: "bg-[#DCFCE7] text-[#16A34A]",
+  sky: "bg-[#DBEAFE] text-[#2563EB]",
+  amber: "bg-[#FEF3C7] text-[#D97706]",
 } as const;
 
 export function StatCard({
@@ -28,21 +29,23 @@ export function StatCard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <CardTitle className="text-[13px] font-medium text-[#75718F]">{label}</CardTitle>
         {Icon ? (
           <span
             className={cn(
-              "flex h-8 w-8 items-center justify-center rounded-full",
+              "flex h-9 w-9 items-center justify-center rounded-full",
               accent ? ACCENT_CLASSES[accent] : "bg-muted text-muted-foreground"
             )}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-[18px] w-[18px]" />
           </span>
         ) : null}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold">{value}</div>
-        {hint ? <p className={cn("mt-1 text-xs", hintClassName ?? "text-muted-foreground")}>{hint}</p> : null}
+        <div className="text-[28px] font-extrabold tracking-tight">{value}</div>
+        {hint ? (
+          <p className={cn("mt-1.5 text-[13px] font-semibold break-words", hintClassName ?? "text-[#75718F]")}>{hint}</p>
+        ) : null}
       </CardContent>
     </Card>
   );

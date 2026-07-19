@@ -226,9 +226,11 @@ export interface MediaInsights {
   likes: number;
   comments: number;
   shares: number;
+  reach: number;
+  saved: number;
 }
 
-/** Métricas de um Reel já publicado (views, likes, comments, shares). */
+/** Métricas de um Reel já publicado (views, likes, comments, shares, reach, saved). */
 export async function getMediaInsights(
   mediaId: string,
   accessToken: string
@@ -240,11 +242,11 @@ export async function getMediaInsights(
       total_value?: { value: number };
     }>;
   }>(`${GRAPH_VERSION}/${mediaId}/insights`, {
-    metric: "views,likes,comments,shares",
+    metric: "views,likes,comments,shares,reach,saved",
     access_token: accessToken,
   });
 
-  const metrics: MediaInsights = { views: 0, likes: 0, comments: 0, shares: 0 };
+  const metrics: MediaInsights = { views: 0, likes: 0, comments: 0, shares: 0, reach: 0, saved: 0 };
   for (const item of res.data ?? []) {
     const value = item.values?.[0]?.value ?? item.total_value?.value ?? 0;
     if (item.name in metrics) {

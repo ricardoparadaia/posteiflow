@@ -4,29 +4,30 @@ import { useRef, useState, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
+  ArrowDownWideNarrow,
+  Calendar,
+  Clock,
+  Flag,
+  Folder,
+  Info,
   Loader2,
+  Play,
   RotateCcw,
+  SlidersHorizontal,
   Trash2,
   UploadCloud,
+  Video as VideoIcon,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { supabaseBrowser, VIDEOS_BUCKET } from "@/lib/supabase-browser";
 import { formatBrasilia } from "@/lib/format-date";
+import { cn } from "@/lib/utils";
 import type { Post, Video } from "@/types/db";
 
 type PostWithVideo = Post & { video: Video };
@@ -106,6 +107,12 @@ function formatDuration(seconds: number | null) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/** dd/MM/yyyy HH:mm de um Date já em horário local do browser (mesmo tz usado pelos inputs date/time). */
+function formatLocalDatetime(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 type UploadTileStatus = "reading" | "uploading" | "saving" | "error";
 
 interface UploadTile {
@@ -127,16 +134,12 @@ function toDatetimeLocalValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function statusVariant(status: Post["status"]) {
-  switch (status) {
-    case "publicado":
-      return "default" as const;
-    case "erro":
-      return "destructive" as const;
-    default:
-      return "secondary" as const;
-  }
-}
+const STATUS_STYLES: Record<Post["status"], { label: string; className: string }> = {
+  pendente: { label: "Pendente", className: "bg-[#DCFCE7] text-[#16A34A]" },
+  processando: { label: "Processando", className: "bg-accent text-accent-foreground" },
+  publicado: { label: "Publicado", className: "bg-[#F1F0F8] text-[#5B5876]" },
+  erro: { label: "Erro", className: "bg-[#FEE2E2] text-[#DC2626]" },
+};
 
 export function QueueView({
   initialUnscheduled,
@@ -186,6 +189,16 @@ export function QueueView({
 
   function itemCaption(item: QueueItem): string {
     return item.captionOverride ?? defaultCaption;
+  }
+
+  /** Restaura a ordem em que os vídeos foram enviados (created_at) — uploads em paralelo podem
+   * terminar fora de ordem e embaralhar a fila, isso desfaz o embaralhamento. */
+  function handleSortByUploadOrder() {
+    setQueueItems((prev) =>
+      [...prev].sort(
+        (a, b) => new Date(a.video.created_at).getTime() - new Date(b.video.created_at).getTime()
+      )
+    );
   }
 
   async function uploadOneFile(file: File) {
@@ -376,15 +389,16 @@ export function QueueView({
   const quotaWouldExceed = quota != null && quota.quotaUsage + queueItems.length > quota.quotaTotal;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       {/* -------------------------------------------------------------- */}
       {/* Upload em massa                                                 */}
       {/* -------------------------------------------------------------- */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3.5">
         <div
-          className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed p-4 text-center transition-colors ${
-            dragOver ? "border-primary bg-accent" : "border-muted-foreground/25"
-          }`}
+          className={cn(
+            "flex flex-col items-center justify-center gap-3.5 rounded-[20px] border-2 border-dashed bg-card p-7 text-center transition-colors sm:p-10",
+            dragOver ? "border-primary bg-accent/40" : "border-[#DCD6F7]"
+          )}
           onDragOver={(e) => {
             e.preventDefault();
             setDragOver(true);
@@ -392,11 +406,22 @@ export function QueueView({
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
         >
-          <UploadCloud className="h-6 w-6 text-muted-foreground" />
-          <p className="text-sm font-medium">
-            Arraste vários vídeos aqui <span className="text-xs font-normal text-muted-foreground">— MP4 ou MOV, até {MAX_FILE_SIZE_LABEL}</span>
-          </p>
-          <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#EDE9FE] text-[#7C5CFC]">
+            <UploadCloud className="h-6 w-6" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-[15px] font-semibold">Arraste vários vídeos aqui</p>
+            <p className="text-[13px] text-muted-foreground">
+              MP4 ou MOV, até {MAX_FILE_SIZE_LABEL}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2 rounded-xl border-border bg-secondary text-[13px] font-semibold text-primary hover:bg-secondary/70"
+            onClick={() => inputRef.current?.click()}
+          >
+            <Folder className="h-4 w-4" />
             Selecionar vídeos
           </Button>
           <input
@@ -419,43 +444,45 @@ export function QueueView({
         ) : null}
 
         {uploading.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-muted-foreground">
+          <div className="flex flex-col gap-2.5">
+            <p className="text-[13px] font-semibold text-[#5B5876]">
               Enviando… {uploadStats.done} de {uploadStats.total}
             </p>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {uploading.map((tile) => (
-                <div key={tile.id} className="overflow-hidden rounded-lg border">
-                  <div className="relative flex h-20 items-center justify-center bg-muted">
-                    {tile.status === "error" ? (
-                      <X className="h-5 w-5 text-destructive" />
-                    ) : (
-                      <>
-                        <Skeleton className="absolute inset-0" />
-                        <Loader2 className="relative h-5 w-5 animate-spin text-muted-foreground" />
-                      </>
-                    )}
-                  </div>
-                  <div className="p-1.5">
-                    <p className="truncate text-[11px] font-medium" title={tile.filename}>
-                      {tile.filename}
-                    </p>
-                    <p className="truncate text-[10px] text-muted-foreground" title={tile.error}>
-                      {tile.status === "reading" && "Lendo…"}
-                      {tile.status === "uploading" && "Enviando…"}
-                      {tile.status === "saving" && "Salvando…"}
-                      {tile.status === "error" && (tile.error ?? "Falhou")}
-                    </p>
-                    {tile.status === "error" ? (
-                      <button
-                        type="button"
-                        className="text-[10px] text-muted-foreground underline"
-                        onClick={() => setUploading((prev) => prev.filter((t) => t.id !== tile.id))}
-                      >
-                        dispensar
-                      </button>
+                <div key={tile.id} className="card-shadow flex flex-col gap-2.5 rounded-2xl bg-card p-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-muted text-[#B4B1C9]">
+                      {tile.status === "error" ? (
+                        <X className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <VideoIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold" title={tile.filename}>
+                        {tile.filename}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground" title={tile.error}>
+                        {tile.status === "reading" && "Lendo…"}
+                        {tile.status === "uploading" && "Enviando…"}
+                        {tile.status === "saving" && "Salvando…"}
+                        {tile.status === "error" && (tile.error ?? "Falhou")}
+                      </p>
+                    </div>
+                    {tile.status !== "error" ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
                     ) : null}
                   </div>
+                  {tile.status === "error" ? (
+                    <button
+                      type="button"
+                      className="self-start text-xs text-muted-foreground underline"
+                      onClick={() => setUploading((prev) => prev.filter((t) => t.id !== tile.id))}
+                    >
+                      dispensar
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -464,223 +491,324 @@ export function QueueView({
       </div>
 
       {/* -------------------------------------------------------------- */}
-      {/* Controles gerais + agendar todos                                */}
+      {/* Configuração da fila + Aguardando configuração                  */}
       {/* -------------------------------------------------------------- */}
-      <div className="flex flex-col gap-4 rounded-lg border p-4">
-        <div className="grid gap-2">
-          <Label htmlFor="default-caption">Legenda padrão</Label>
-          <Textarea
-            id="default-caption"
-            value={defaultCaption}
-            onChange={(e) => setDefaultCaption(e.target.value)}
-            placeholder="Aplicada a todos os vídeos da fila, exceto onde houver legenda individual"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="grid gap-2">
-            <Label htmlFor="start-date">Data de início</Label>
-            <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+      <Card className="p-[22px]">
+        <div className="flex flex-col gap-[18px]">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-[#EDE9FE] text-[#7C5CFC]">
+              <SlidersHorizontal className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-base font-bold">Configuração da fila</p>
+              <p className="text-xs text-muted-foreground">
+                Defina os padrões e revise seus vídeos antes de agendar.
+              </p>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="start-time">Hora de início</Label>
-            <Input id="start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr_1fr]">
+            <div className="grid gap-1.5">
+              <Label htmlFor="default-caption" className="text-xs font-semibold text-[#5B5876]">
+                Legenda padrão
+              </Label>
+              <Textarea
+                id="default-caption"
+                className="min-h-[90px] rounded-xl text-[13px]"
+                value={defaultCaption}
+                onChange={(e) => setDefaultCaption(e.target.value)}
+                placeholder="Aplicada a todos os vídeos da fila, exceto onde houver legenda individual"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="start-date" className="text-xs font-semibold text-[#5B5876]">
+                Data de início
+              </Label>
+              <Input
+                id="start-date"
+                type="date"
+                className="rounded-xl"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="start-time" className="text-xs font-semibold text-[#5B5876]">
+                Hora de início
+              </Label>
+              <Input
+                id="start-time"
+                type="time"
+                className="rounded-xl"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="interval" className="text-xs font-semibold text-[#5B5876]">
+                Intervalo (min)
+              </Label>
+              <Input
+                id="interval"
+                type="number"
+                min={1}
+                className="rounded-xl"
+                value={intervalMinutes}
+                onChange={(e) => setIntervalMinutes(Math.max(1, Number(e.target.value) || 1))}
+              />
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="interval">Intervalo (min)</Label>
-            <Input
-              id="interval"
-              type="number"
-              min={1}
-              value={intervalMinutes}
-              onChange={(e) => setIntervalMinutes(Math.max(1, Number(e.target.value) || 1))}
-            />
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+              <Info className="h-2.5 w-2.5" />
+            </span>
+            Os horários serão incrementados automaticamente com base no intervalo definido.
           </div>
-        </div>
 
-        {quotaWouldExceed && quota ? (
-          <Alert variant="destructive">
-            <AlertDescription>
-              Agendar estes {queueItems.length} vídeo(s) pode ultrapassar o limite de {quota.quotaTotal}{" "}
-              publicações/24h (uso atual: {quota.quotaUsage}/{quota.quotaTotal}). Isso não é bloqueado — o
-              scheduler reagenda automaticamente os excedentes quando a cota liberar, mas os horários reais
-              de publicação vão se afastar do que está calculado abaixo.
-            </AlertDescription>
-          </Alert>
-        ) : null}
+          <div className="flex flex-col gap-4 border-t border-border pt-[18px]">
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <p className="text-base font-bold">Aguardando configuração</p>
+                <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-foreground">
+                  {queueItems.length} vídeos
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 rounded-[10px] border-border bg-secondary text-xs font-semibold text-[#5B5876] hover:bg-secondary/70"
+                onClick={handleSortByUploadOrder}
+                disabled={queueItems.length < 2}
+              >
+                Ordenar por ordem de envio
+                <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+              </Button>
+            </div>
 
-        {scheduleError ? (
-          <Alert variant="destructive">
-            <AlertDescription>{scheduleError}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        <Button
-          type="button"
-          onClick={handleScheduleAll}
-          disabled={queueItems.length === 0 || scheduling}
-          className="self-start"
-        >
-          {scheduling ? "Agendando…" : `Agendar todos (${queueItems.length})`}
-        </Button>
-      </div>
-
-      {/* -------------------------------------------------------------- */}
-      {/* Fila (ainda não agendados)                                     */}
-      {/* -------------------------------------------------------------- */}
-      <div>
-        <h2 className="mb-3 text-lg font-medium">Aguardando configuração ({queueItems.length})</h2>
-        {queueItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum vídeo na fila — envie vídeos acima.</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-            {queueItems.map((item, index) => (
-              <div key={item.video.id} className="overflow-hidden rounded-lg border">
-                <div className="relative h-24 bg-muted">
-                  {item.video.thumbnail_url ? (
-                    <Image
-                      src={item.video.thumbnail_url}
-                      alt={item.video.filename}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-[10px] text-muted-foreground">
-                      Sem thumbnail
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className="absolute top-1 right-1 rounded bg-black/50 p-1 text-white hover:bg-black/70 disabled:opacity-50"
-                    onClick={() => handleDeleteQueuedVideo(item.video.id)}
-                    disabled={deletingVideoId === item.video.id}
-                    title="Excluir"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-                <div className="flex flex-col gap-1 p-1.5">
-                  <p className="truncate text-[11px] font-medium" title={item.video.filename}>
-                    {item.video.filename}
-                    <span className="font-normal text-muted-foreground"> · {formatDuration(item.video.duration_seconds)}</span>
-                  </p>
-
-                  <Textarea
-                    aria-label="Legenda"
-                    className="min-h-10 py-1 text-[11px]"
-                    value={itemCaption(item)}
-                    placeholder="Legenda padrão"
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setQueueItems((prev) =>
-                        prev.map((qi) => (qi.video.id === item.video.id ? { ...qi, captionOverride: value } : qi))
-                      );
-                    }}
-                  />
-                  {item.captionOverride !== null ? (
+            {queueItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum vídeo na fila — envie vídeos acima.</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                {queueItems.map((item, index) => (
+                  <div key={item.video.id} className="relative flex flex-col gap-2 rounded-[14px] border border-border p-2.5">
+                    <span className="absolute top-2.5 left-2.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
+                      {index + 1}
+                    </span>
                     <button
                       type="button"
-                      className="self-start text-[10px] text-muted-foreground underline"
-                      onClick={() =>
-                        setQueueItems((prev) =>
-                          prev.map((qi) => (qi.video.id === item.video.id ? { ...qi, captionOverride: null } : qi))
-                        )
-                      }
+                      className="absolute top-2.5 right-2.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#FEE2E2] text-[#DC2626] disabled:opacity-50"
+                      onClick={() => handleDeleteQueuedVideo(item.video.id)}
+                      disabled={deletingVideoId === item.video.id}
+                      title="Excluir"
                     >
-                      usar padrão
+                      <Trash2 className="h-3 w-3" />
                     </button>
-                  ) : null}
+                    <div className="relative aspect-9/16 w-full overflow-hidden rounded-[10px] bg-muted">
+                      {item.video.thumbnail_url ? (
+                        <Image
+                          src={item.video.thumbnail_url}
+                          alt={item.video.filename}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <VideoIcon className="h-6 w-6 text-[#B4B1C9]" />
+                        </div>
+                      )}
+                      <span className="absolute right-1.5 bottom-1.5 rounded-md bg-[#15132A]/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        {formatDuration(item.video.duration_seconds)}
+                      </span>
+                    </div>
+                    <p className="truncate text-xs font-semibold" title={item.video.filename}>
+                      {item.video.filename}
+                    </p>
 
-                  <Input
-                    aria-label="Horário"
-                    type="datetime-local"
-                    className="h-7 text-[11px]"
-                    value={item.timeOverride ?? toDatetimeLocalValue(itemDatetime(item, index))}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setQueueItems((prev) =>
-                        prev.map((qi) => (qi.video.id === item.video.id ? { ...qi, timeOverride: value } : qi))
-                      );
-                    }}
-                  />
+                    <Textarea
+                      aria-label="Legenda"
+                      className="min-h-8 rounded-[9px] py-1.5 text-[11px]"
+                      value={itemCaption(item)}
+                      placeholder="Legenda (opcional)"
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setQueueItems((prev) =>
+                          prev.map((qi) => (qi.video.id === item.video.id ? { ...qi, captionOverride: value } : qi))
+                        );
+                      }}
+                    />
+                    {item.captionOverride !== null ? (
+                      <button
+                        type="button"
+                        className="self-start text-[10px] text-muted-foreground underline"
+                        onClick={() =>
+                          setQueueItems((prev) =>
+                            prev.map((qi) => (qi.video.id === item.video.id ? { ...qi, captionOverride: null } : qi))
+                          )
+                        }
+                      >
+                        usar padrão
+                      </button>
+                    ) : null}
+
+                    <Input
+                      aria-label="Horário"
+                      type="datetime-local"
+                      className="h-7 rounded-[9px] text-[11px]"
+                      value={item.timeOverride ?? toDatetimeLocalValue(itemDatetime(item, index))}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setQueueItems((prev) =>
+                          prev.map((qi) => (qi.video.id === item.video.id ? { ...qi, timeOverride: value } : qi))
+                        );
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {quotaWouldExceed && quota ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  Agendar estes {queueItems.length} vídeo(s) pode ultrapassar o limite de {quota.quotaTotal}{" "}
+                  publicações/24h (uso atual: {quota.quotaUsage}/{quota.quotaTotal}). Isso não é bloqueado — o
+                  scheduler reagenda automaticamente os excedentes quando a cota liberar, mas os horários reais
+                  de publicação vão se afastar do que está calculado abaixo.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {scheduleError ? (
+              <Alert variant="destructive">
+                <AlertDescription>{scheduleError}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-5 rounded-[14px] bg-secondary p-3.5 sm:px-[18px] sm:py-3.5">
+              <div className="flex items-center gap-2">
+                <VideoIcon className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-[13px] font-bold">{queueItems.length} vídeos</p>
+                  <p className="text-[11px] text-muted-foreground">na fila</p>
                 </div>
               </div>
-            ))}
+              <div className="flex items-center gap-2">
+                <Play className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-[13px] font-bold">Início</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {queueItems.length > 0 ? formatLocalDatetime(itemDatetime(queueItems[0], 0)) : "—"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Flag className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-[13px] font-bold">Término estimado</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {queueItems.length > 0
+                      ? formatLocalDatetime(itemDatetime(queueItems[queueItems.length - 1], queueItems.length - 1))
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                <div>
+                  <p className="text-[13px] font-bold">Intervalo</p>
+                  <p className="text-[11px] text-muted-foreground">{intervalMinutes} minutos</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                onClick={handleScheduleAll}
+                disabled={queueItems.length === 0 || scheduling}
+                className="brand-gradient h-auto gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-[0_8px_20px_-8px_rgba(109,76,251,0.6)] hover:brightness-[1.06] sm:ml-auto"
+              >
+                <Calendar className="h-3.5 w-3.5" strokeWidth={2.5} />
+                {scheduling ? "Agendando…" : `Agendar todos os ${queueItems.length} vídeos`}
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      </Card>
 
       {/* -------------------------------------------------------------- */}
       {/* Agendados / publicados hoje                                    */}
       {/* -------------------------------------------------------------- */}
-      <div>
-        <h2 className="mb-3 text-lg font-medium">Agendados ({initialActivePosts.length})</h2>
+      <Card className="p-[22px]">
+        <p className="mb-4 text-base font-bold">Agendados ({initialActivePosts.length})</p>
         {initialActivePosts.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum agendamento ativo.</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Vídeo</TableHead>
-                <TableHead>Data/hora</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Detalhe</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {initialActivePosts.map((post) => (
-                <TableRow key={post.id}>
-                  <TableCell className="max-w-48 truncate">{post.video.filename}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {formatBrasilia(
-                      post.status === "publicado" && post.published_at ? post.published_at : post.scheduled_datetime,
-                      "PPPp"
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant(post.status)}>{post.status}</Badge>
-                  </TableCell>
-                  <TableCell
-                    className="max-w-64 truncate text-xs text-muted-foreground"
-                    title={post.error_message ?? undefined}
+          <div className="overflow-x-auto">
+            <div className="flex min-w-[640px] flex-col">
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] gap-3 border-b border-border px-2 pb-2.5 text-[11px] font-bold tracking-wide text-muted-foreground uppercase">
+                <div>Vídeo</div>
+                <div>Data</div>
+                <div>Horário</div>
+                <div>Status</div>
+                <div className="text-right">Ação</div>
+              </div>
+              {initialActivePosts.map((post) => {
+                const statusStyle = STATUS_STYLES[post.status];
+                const displayDatetime =
+                  post.status === "publicado" && post.published_at ? post.published_at : post.scheduled_datetime;
+                return (
+                  <div
+                    key={post.id}
+                    className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] items-center gap-3 border-b border-[#F1F0F8] px-2 py-3 last:border-b-0"
                   >
-                    {post.error_message ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    {post.status === "pendente" ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => handleCancel(post.id)}
-                        disabled={cancelingId === post.id}
-                        title="Cancelar"
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-muted text-[#B4B1C9]">
+                        <VideoIcon className="h-4 w-4" />
+                      </div>
+                      <p className="truncate text-[13px] font-semibold">{post.video.filename}</p>
+                    </div>
+                    <p className="text-[13px] text-[#5B5876]">{formatBrasilia(displayDatetime, "dd/MM/yyyy")}</p>
+                    <p className="text-[13px] text-[#5B5876]">{formatBrasilia(displayDatetime, "HH:mm")}</p>
+                    <div>
+                      <span
+                        className={cn("inline-block rounded-full px-2.5 py-1 text-[11px] font-bold", statusStyle.className)}
+                        title={post.status === "erro" ? (post.error_message ?? undefined) : undefined}
                       >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    ) : null}
-                    {post.status === "erro" ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2"
-                        onClick={() => handleRetry(post.id)}
-                        disabled={retryingId === post.id}
-                        title="Reprocessar"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        {retryingId === post.id ? "Reprocessando…" : "Reprocessar"}
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                        {statusStyle.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-end gap-1.5">
+                      {post.status === "erro" ? (
+                        <button
+                          type="button"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#FEE2E2] text-[#DC2626] disabled:opacity-50"
+                          onClick={() => handleRetry(post.id)}
+                          disabled={retryingId === post.id}
+                          title={post.error_message ? `Reprocessar — ${post.error_message}` : "Reprocessar"}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                      {post.status === "pendente" ? (
+                        <button
+                          type="button"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-secondary text-muted-foreground disabled:opacity-50"
+                          onClick={() => handleCancel(post.id)}
+                          disabled={cancelingId === post.id}
+                          title="Cancelar"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

@@ -46,6 +46,8 @@ export async function collectAnalyticsTick(): Promise<AnalyticsRunSummary> {
         likes: insights.likes,
         comments: insights.comments,
         shares: insights.shares,
+        reach: insights.reach,
+        saved: insights.saved,
       });
       summary.collected++;
     } catch (err) {
@@ -89,11 +91,13 @@ async function updateTodayAccountStats(igUserId: string, accessToken: string) {
   let totalViews = 0;
   let totalLikes = 0;
   let totalComments = 0;
+  let totalReach = 0;
+  let totalSaves = 0;
 
   for (const post of todaysPosts ?? []) {
     const { data: latest } = await supabaseAdmin
       .from("analytics")
-      .select("views, likes, comments")
+      .select("views, likes, comments, reach, saved")
       .eq("post_id", post.id)
       .order("collected_at", { ascending: false })
       .limit(1)
@@ -103,6 +107,8 @@ async function updateTodayAccountStats(igUserId: string, accessToken: string) {
       totalViews += latest.views ?? 0;
       totalLikes += latest.likes ?? 0;
       totalComments += latest.comments ?? 0;
+      totalReach += latest.reach ?? 0;
+      totalSaves += latest.saved ?? 0;
     }
   }
 
@@ -116,6 +122,8 @@ async function updateTodayAccountStats(igUserId: string, accessToken: string) {
       total_views: totalViews,
       total_likes: totalLikes,
       total_comments: totalComments,
+      total_reach: totalReach,
+      total_saves: totalSaves,
       collected_at: new Date().toISOString(),
     },
     { onConflict: "stat_date" }

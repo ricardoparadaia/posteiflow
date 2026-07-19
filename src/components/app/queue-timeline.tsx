@@ -30,39 +30,34 @@ export function QueueTimeline({ items, totalCount }: { items: QueueTimelineItem[
   const remaining = totalCount - items.length;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       {groups.map((group) => (
         <div key={group.label}>
-          <p className="mb-1 text-xs font-medium text-muted-foreground">{group.label}</p>
-          <div className="flex flex-col">
-            {group.items.map((item, index) => (
-              <div key={item.id} className="flex gap-2">
-                <div className="flex flex-col items-center">
-                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-foreground/40" />
-                  {index < group.items.length - 1 ? <span className="w-px flex-1 bg-border" /> : null}
+          <p className="mb-2.5 text-[13px] font-bold tracking-wide text-primary uppercase">{group.label}</p>
+          <div className="flex flex-col gap-3.5 border-l-2 border-border pl-[18px]">
+            {group.items.map((item) => (
+              <div key={item.id} className="relative flex items-center gap-3">
+                <span className="absolute top-1/2 -left-[23px] h-[9px] w-[9px] -translate-y-1/2 rounded-full bg-primary shadow-[0_0_0_2px_#fff,0_0_0_4px_var(--border)]" />
+                <span className="w-11 shrink-0 text-xs font-bold text-[#5B5876]">
+                  {formatBrasilia(item.scheduledDatetime, "HH:mm")}
+                </span>
+                <div className="relative h-[38px] w-[38px] shrink-0 overflow-hidden rounded-[9px] bg-muted">
+                  {item.thumbnailUrl ? (
+                    <Image src={item.thumbnailUrl} alt="" fill className="object-cover" unoptimized />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <VideoIcon className="h-4 w-4 text-[#B4B1C9]" />
+                    </div>
+                  )}
                 </div>
-                <div className="flex min-w-0 items-center gap-2 pb-2.5">
-                  <span className="w-10 shrink-0 text-xs text-muted-foreground">
-                    {formatBrasilia(item.scheduledDatetime, "HH:mm")}
-                  </span>
-                  <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded bg-muted">
-                    {item.thumbnailUrl ? (
-                      <Image src={item.thumbnailUrl} alt="" fill className="object-cover" unoptimized />
-                    ) : (
-                      <div className="flex h-full items-center justify-center">
-                        <VideoIcon className="h-3 w-3 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  <span className="truncate text-xs">{item.filename}</span>
-                </div>
+                <span className="min-w-0 truncate text-[13px] font-semibold">{item.filename}</span>
               </div>
             ))}
           </div>
         </div>
       ))}
-      <Link href="/queue" className="text-center text-xs text-muted-foreground underline">
-        {remaining > 0 ? `+${remaining} mais · Ver fila completa` : "Ver fila completa"}
+      <Link href="/queue" className="pl-[52px] text-xs font-semibold text-[#8B88A3]">
+        {remaining > 0 ? `+${remaining} mais` : "Ver fila completa"}
       </Link>
     </div>
   );
