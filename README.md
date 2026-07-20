@@ -48,7 +48,6 @@ Variáveis:
 | `IG_USER_ID` | `17841448692415302` | ID da conta @humordeporco |
 | `IG_ACCESS_TOKEN` | Painel do Meta (token de curta duração, ~1h) | Só é lido ao clicar em "Conectar" em Configurações |
 | `IG_GRAPH_API_VERSION` | opcional, padrão `v25.0` | Ajuste se a Meta depreciar a versão. Só afeta endpoints versionados (container, publish, insights, conta) — os de token (exchange/refresh) nunca levam versão na URL |
-| `APP_USERNAME` / `APP_PASSWORD` | você escolhe | Login do Basic Auth que protege o app inteiro — veja seção 8 |
 | `CRON_SECRET` | gere um valor aleatório qualquer | Protege as rotas `/api/cron/*` |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | opcional (bot já usado em outro projeto) | Deixe em branco para desativar o alerta sem erro |
 
@@ -109,26 +108,41 @@ Qualquer falha na troca que **não** seja esse erro específico de tipo de token
 ## 7. Deploy na Vercel
 
 1. Suba o repositório (GitHub/GitLab/Bitbucket) e importe na Vercel, ou `vercel deploy` pela CLI.
-2. Em **Project Settings > Environment Variables**, adicione todas as variáveis da seção 2 (Production e Preview) — incluindo `APP_USERNAME`/`APP_PASSWORD` (seção 8) e `CRON_SECRET`.
+2. Em **Project Settings > Environment Variables**, adicione todas as variáveis da seção 2 (Production e Preview) — incluindo `CRON_SECRET`.
 3. Faça o deploy e anote a URL pública (ex: `https://posteiflow.vercel.app`).
 4. No SQL Editor do Supabase, abra `supabase/migrations/0002_cron_jobs.sql`, troque `<APP_URL>` pela URL do passo 3 e `<CRON_SECRET>` pelo mesmo valor da env var, e rode.
 5. Confirme os jobs: `select * from cron.job;` no SQL Editor.
-6. Acesse `/settings` no app publicado (vai pedir o login do Basic Auth primeiro) e clique em "Conectar" para gravar o token de longa duração.
+6. Acesse `/settings` no app publicado (vai pedir login — veja seção 8) e clique em "Conectar" para gravar o token de longa duração.
 
 Se depois trocar a URL do deploy (novo domínio), rode `select cron.unschedule('posteiflow-scheduler');` (e os outros dois nomes de job) e reagende com a URL nova.
 
-## 8. Autenticação (Basic Auth)
+## 8. Autenticação (Supabase Auth)
 
-O app é publicado numa URL pública da Vercel, sem nenhum controle de acesso próprio — então todo o app (páginas e API, exceto `/api/cron/*`) fica atrás de HTTP Basic Auth simples, implementado em [`src/proxy.ts`](src/proxy.ts).
+O app é publicado numa URL pública da Vercel, sem nenhum controle de acesso próprio — então todo o app (páginas e API, exceto `/api/cron/*` e o manifest/ícones do PWA) fica atrás de login via **Supabase Auth**, com sessão em cookie (`@supabase/ssr`), verificada em [`src/proxy.ts`](src/proxy.ts) / [`src/lib/supabase/middleware.ts`](src/lib/supabase/middleware.ts).
+
+**Por que trocamos o Basic Auth:** PWAs instaladas ("Adicionar à Tela de Início") no iOS têm comportamento inconsistente com o popup nativo de Basic Auth em modo standalone — o diálogo às vezes não aparece, ou a sessão não persiste entre aberturas do app. Cookie de sessão funciona de forma confiável nesse cenário, por isso a troca.
 
 **Por que `proxy.ts` e não `middleware.ts`:** no Next.js 16 (a versão deste projeto), o arquivo `middleware.ts` foi renomeado para `proxy.ts` (e a função exportada de `middleware` para `proxy`) — `middleware.ts` está deprecado e pode não ser nem reconhecido. Funcionalmente é a mesma coisa que "middleware" em versões anteriores do Next.js.
 
 Como funciona:
-- Protege **todas** as rotas exceto `/api/cron/*` (que já usa `CRON_SECRET` via Bearer token — não faz sentido pedir duas autenticações diferentes na mesma rota) e os assets internos do Next (`_next/static`, `_next/image`, `favicon.ico`).
-- Sem `APP_USERNAME`/`APP_PASSWORD` configurados, o proxy nega acesso a tudo (fail closed) — nunca libera o app por engano por falta de configuração.
-- Isso vale em produção **e** em `next dev` — depois de configurar essas duas env vars, o navegador vai pedir login também ao rodar localmente.
+- `src/lib/supabase/middleware.ts` chama `supabase.auth.getUser()` a cada request (valida o JWT contra o servidor da Supabase, não só decodifica o cookie) e redireciona pra `/login` se não houver usuário autenticado.
+- Protege **todas** as rotas exceto `/api/cron/*` (que já usa `CRON_SECRET` via Bearer token), os assets internos do Next (`_next/static`, `_next/image`, `favicon.ico`) e o manifest/ícones do PWA (`manifest.webmanifest`, `icon`, `apple-icon`, `icon-192.png`, `icon-512.png` — precisam ficar públicos pro navegador conseguir checar instalabilidade e baixar o ícone sem estar logado).
+- `/login` é a única tela sem essa chrome de navegação (sidebar/menu) — um formulário simples de email/senha (`src/components/app/login-form.tsx`) que chama `supabase.auth.signInWithPassword()` direto do browser via `@supabase/ssr` (`createBrowserClient`), que já grava a sessão em cookie `httpOnly`/`Secure`/`SameSite` automaticamente.
+- O nome exibido na sidebar (e no "Olá, Nome!" do Dashboard) vem de `user_metadata.name` do usuário autenticado — veja como definir abaixo.
+- Botão "Sair" na sidebar chama `supabase.auth.signOut()` e redireciona pra `/login`.
 
-**Para trocar a senha:** gere um novo valor (ex: `node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))"`), atualize `APP_PASSWORD` no `.env.local` e nas Environment Variables da Vercel (redeploy necessário para produção), e informe o usuário/senha novos pra quem precisar acessar. Não há usuários múltiplos nem hash de senha — é literalmente um único login fixo comparado por igualdade, adequado só porque é uso pessoal.
+### Criar seu usuário (único, sem cadastro público)
+
+Este projeto **não tem tela de cadastro** — o formulário de login só autentica, nunca cria conta. Para criar o seu usuário:
+
+1. No painel do Supabase do projeto do PosteiFlow, vá em **Authentication > Users > Add user > Create new user**.
+2. Preencha email e senha, e marque **Auto Confirm User** (senão o Supabase espera confirmação por email antes de liberar o login).
+3. (Opcional, recomendado) Depois de criado, clique no usuário e edite **User Metadata** (JSON) pra adicionar `{"name": "Ricardo"}` — é o que aparece na sidebar e no "Olá, Ricardo!" do Dashboard. Sem isso, cai no fallback (parte antes do `@` do email).
+4. Em **Authentication > Sign In / Providers > Email**, desligue **"Allow new users to sign up"** — garante que ninguém consiga criar conta mesmo que descubra a `anon key` (que é pública por design, exposta no bundle do browser).
+
+**Não recomendamos** inserir direto na tabela `auth.users` via SQL Editor — o schema interno (hash de senha, `instance_id`, `confirmed_at`, etc.) não é documentado/estável e é fácil deixar o usuário num estado inconsistente. Se preferir automatizar por script em vez do dashboard, use a Admin API (`supabase.auth.admin.createUser()`, com a `service_role` key) em vez de SQL cru.
+
+**Para trocar a senha:** Authentication > Users > (seu usuário) > "Reset Password" ou defina uma nova senha diretamente ali. Não precisa de redeploy — a verificação acontece contra a API da Supabase, não contra uma env var.
 
 ## Limitações conhecidas do v1
 

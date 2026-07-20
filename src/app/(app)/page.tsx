@@ -13,7 +13,8 @@ import { getActiveInstagramAccount } from "@/lib/account";
 import { getAccountInfo } from "@/lib/instagram";
 import { getLatestAnalyticsMap, sumMetrics, type LatestAnalytics } from "@/lib/metrics";
 import { formatBrasilia, getBrasiliaDateString, startOfBrasiliaDay } from "@/lib/format-date";
-import { capitalize } from "@/lib/utils";
+import { getAuthUser } from "@/lib/supabase/server";
+import { getDisplayName } from "@/lib/user";
 import type { Post, Video } from "@/types/db";
 
 const FOLLOWERS_CHART_MAX_DAYS = 30;
@@ -260,7 +261,8 @@ function formatRemaining(ms: number): string {
 export default async function DashboardPage() {
   const data = await getDashboardData();
   const countdown = data.nextPost ? computeCountdown(data.nextPost.created_at, data.nextPost.scheduled_datetime) : null;
-  const greetingName = process.env.APP_USERNAME ? capitalize(process.env.APP_USERNAME) : null;
+  const user = await getAuthUser();
+  const greetingName = getDisplayName(user);
 
   return (
     <div className="flex flex-col gap-6">

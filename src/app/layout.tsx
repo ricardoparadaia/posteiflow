@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { AppNav, MobileNavBar } from "@/components/app/nav";
-import { capitalize } from "@/lib/utils";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -18,6 +16,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "PosteiFlow",
   description: "Agendamento de Reels e métricas — @humordeporco",
+  appleWebApp: {
+    capable: true,
+    title: "PosteiFlow",
+    statusBarStyle: "default",
+  },
+  other: {
+    // Next só emite a tag moderna sem prefixo (mobile-web-app-capable) a
+    // partir de appleWebApp.capable — a legada com prefixo ainda é o que
+    // versões mais antigas do iOS/Safari checam pra abrir em modo standalone.
+    "apple-mobile-web-app-capable": "yes",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#7C5CFC",
 };
 
 export default function RootLayout({
@@ -25,19 +38,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const username = process.env.APP_USERNAME ? capitalize(process.env.APP_USERNAME) : null;
-
   return (
     <html lang="pt-BR" className={`${inter.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full bg-background text-foreground">
-        <MobileNavBar username={username} />
-        <div className="flex min-h-screen">
-          <aside className="hidden w-[236px] shrink-0 border-r border-border bg-card md:sticky md:top-0 md:block md:h-screen">
-            <AppNav username={username} />
-          </aside>
-          <main className="min-w-0 flex-1 p-4 pt-[76px] md:p-8 md:pt-8">{children}</main>
-        </div>
-      </body>
+      <body className="min-h-full bg-background text-foreground">{children}</body>
     </html>
   );
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { LayoutGrid, List, BarChart3, Settings, Menu, X } from "lucide-react";
+import { SignOutButton } from "@/components/app/sign-out-button";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutGrid },
@@ -13,7 +14,7 @@ const links = [
   { href: "/settings", label: "Configuração", icon: Settings },
 ];
 
-function Logo({ size = 32 }: { size?: number }) {
+export function Logo({ size = 32 }: { size?: number }) {
   return (
     <div
       className="brand-gradient flex shrink-0 items-center justify-center rounded-[9px]"
@@ -62,7 +63,8 @@ function SidebarFooter({ username }: { username: string | null }) {
       <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-bold text-primary">
         {initials}
       </div>
-      <div className="min-w-0 text-[13px] font-semibold text-nowrap overflow-hidden text-ellipsis">{username}</div>
+      <div className="min-w-0 flex-1 text-[13px] font-semibold text-nowrap overflow-hidden text-ellipsis">{username}</div>
+      <SignOutButton />
     </div>
   );
 }
