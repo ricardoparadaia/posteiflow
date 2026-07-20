@@ -762,26 +762,33 @@ export function QueueView({
                     key={post.id}
                     className="grid grid-cols-[2fr_1fr_1fr_1fr_80px] items-center gap-3 border-b border-[#F1F0F8] px-2 py-3 last:border-b-0"
                   >
-                    {post.status === "publicado" && post.permalink ? (
-                      <a
-                        href={post.permalink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex min-w-0 items-center gap-2.5 hover:opacity-80"
-                      >
-                        <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-muted text-[#B4B1C9]">
-                          <VideoIcon className="h-4 w-4" />
+                    {(() => {
+                      const thumb = (
+                        <div className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-muted text-[#B4B1C9]">
+                          {post.video.thumbnail_url ? (
+                            <Image src={post.video.thumbnail_url} alt="" fill className="object-cover" unoptimized />
+                          ) : (
+                            <VideoIcon className="h-4 w-4" />
+                          )}
                         </div>
-                        <p className="truncate text-[13px] font-semibold">{post.video.filename}</p>
-                      </a>
-                    ) : (
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-muted text-[#B4B1C9]">
-                          <VideoIcon className="h-4 w-4" />
+                      );
+                      return post.status === "publicado" && post.permalink ? (
+                        <a
+                          href={post.permalink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex min-w-0 items-center gap-2.5 hover:opacity-80"
+                        >
+                          {thumb}
+                          <p className="truncate text-[13px] font-semibold">{post.video.filename}</p>
+                        </a>
+                      ) : (
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          {thumb}
+                          <p className="truncate text-[13px] font-semibold">{post.video.filename}</p>
                         </div>
-                        <p className="truncate text-[13px] font-semibold">{post.video.filename}</p>
-                      </div>
-                    )}
+                      );
+                    })()}
                     <p className="text-[13px] text-[#5B5876]">{formatBrasilia(displayDatetime, "dd/MM/yyyy")}</p>
                     <p className="text-[13px] text-[#5B5876]">{formatBrasilia(displayDatetime, "HH:mm")}</p>
                     <div>
