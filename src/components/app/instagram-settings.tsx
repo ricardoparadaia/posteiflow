@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { formatBrasilia } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 type TokenSource = "exchanged" | "refreshed_direct" | "fallback_unverified";
 
@@ -37,6 +37,36 @@ function tokenSourceLabel(source: TokenSource | null | undefined): string {
     default:
       return "—";
   }
+}
+
+interface InfoRow {
+  label: string;
+  value: string;
+  valueClassName?: string;
+  barPct?: number;
+}
+
+function InfoRows({ rows }: { rows: InfoRow[] }) {
+  return (
+    <div className="flex flex-col">
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          className="flex flex-col justify-between gap-1 border-b border-[#F1F0F8] py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-4"
+        >
+          <p className="shrink-0 text-[13.5px] font-medium text-muted-foreground">{row.label}</p>
+          <div className="min-w-0 w-full sm:w-auto">
+            <p className={cn("text-[13.5px] font-semibold sm:text-right", row.valueClassName)}>{row.value}</p>
+            {row.barPct != null ? (
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, row.barPct)}%` }} />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function InstagramSettings() {
@@ -108,33 +138,63 @@ export function InstagramSettings() {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Conexão com o Instagram</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
+      <Card className="p-[22px]">
+        <p className="mb-4 text-base font-bold">Conexão com o Instagram</p>
+        <div className="flex flex-col gap-2">
           <Skeleton className="h-4 w-48" />
           <Skeleton className="h-4 w-32" />
-        </CardContent>
+        </div>
       </Card>
     );
   }
 
+  const statusPill = data?.connected
+    ? data.tokenExpired
+      ? { label: "Token expirado", className: "bg-[#FEE2E2] text-[#DC2626]" }
+      : { label: "Conectado", className: "bg-[#DCFCE7] text-[#16A34A]" }
+    : { label: "Não conectado", className: "bg-[#F1F0F8] text-[#5B5876]" };
+
+  const infoRows: InfoRow[] = data?.connected
+    ? [
+        { label: "Conta", value: `@${data.username ?? data.ig_user_id}` },
+        { label: "Token", value: data.access_token_masked ?? "—" },
+        {
+          label: "Expira em",
+          value:
+            (data.token_expires_at ? formatBrasilia(data.token_expires_at, "PPPp") : "—") +
+            (data.token_source === "fallback_unverified" ? " (estimativa)" : ""),
+          valueClassName: expiresSoon ? "text-destructive" : undefined,
+        },
+        {
+          label: "Última renovação",
+          value: data.token_last_refreshed_at ? formatBrasilia(data.token_last_refreshed_at, "PPPp") : "—",
+        },
+        { label: "Origem do token", value: tokenSourceLabel(data.token_source) },
+        ...(data.followersCount != null
+          ? [{ label: "Seguidores", value: data.followersCount.toLocaleString("pt-BR") }]
+          : []),
+        ...(data.publishingLimit
+          ? [
+              {
+                label: "Publicações (24h)",
+                value: `${data.publishingLimit.quotaUsage} / ${data.publishingLimit.quotaTotal}`,
+                barPct: (data.publishingLimit.quotaUsage / data.publishingLimit.quotaTotal) * 100,
+              },
+            ]
+          : []),
+      ]
+    : [];
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Conexão com o Instagram</CardTitle>
-        {data?.connected ? (
-          data.tokenExpired ? (
-            <Badge variant="destructive">Token expirado</Badge>
-          ) : (
-            <Badge variant="default">Conectado</Badge>
-          )
-        ) : (
-          <Badge variant="secondary">Não conectado</Badge>
-        )}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <Card className="p-[22px]">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
+        <p className="text-base font-bold">Conexão com o Instagram</p>
+        <span className={cn("shrink-0 rounded-full px-3 py-1 text-[11px] font-bold whitespace-nowrap", statusPill.className)}>
+          {statusPill.label}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-4">
         {message ? (
           <Alert variant={message.type === "error" ? "destructive" : "default"}>
             <AlertDescription>{message.text}</AlertDescription>
@@ -142,43 +202,7 @@ export function InstagramSettings() {
         ) : null}
 
         {data?.connected ? (
-          <dl className="grid grid-cols-2 gap-y-2 text-sm">
-            <dt className="text-muted-foreground">Conta</dt>
-            <dd>@{data.username ?? data.ig_user_id}</dd>
-
-            <dt className="text-muted-foreground">Token</dt>
-            <dd className="font-mono">{data.access_token_masked}</dd>
-
-            <dt className="text-muted-foreground">Expira em</dt>
-            <dd className={expiresSoon ? "text-destructive" : undefined}>
-              {data.token_expires_at ? formatBrasilia(data.token_expires_at, "PPPp") : "—"}
-              {data.token_source === "fallback_unverified" ? " (estimativa)" : ""}
-            </dd>
-
-            <dt className="text-muted-foreground">Última renovação</dt>
-            <dd>
-              {data.token_last_refreshed_at ? formatBrasilia(data.token_last_refreshed_at, "PPPp") : "—"}
-            </dd>
-
-            <dt className="text-muted-foreground">Origem do token</dt>
-            <dd>{tokenSourceLabel(data.token_source)}</dd>
-
-            {data.followersCount != null ? (
-              <>
-                <dt className="text-muted-foreground">Seguidores</dt>
-                <dd>{data.followersCount.toLocaleString("pt-BR")}</dd>
-              </>
-            ) : null}
-
-            {data.publishingLimit ? (
-              <>
-                <dt className="text-muted-foreground">Publicações (24h)</dt>
-                <dd>
-                  {data.publishingLimit.quotaUsage} / {data.publishingLimit.quotaTotal}
-                </dd>
-              </>
-            ) : null}
-          </dl>
+          <InfoRows rows={infoRows} />
         ) : (
           <p className="text-sm text-muted-foreground">
             Nenhuma conta conectada. Verifique se IG_APP_SECRET, IG_ACCESS_TOKEN e IG_USER_ID estão
@@ -202,17 +226,26 @@ export function InstagramSettings() {
           <p className="text-xs text-destructive">Aviso: {data.liveDataError}</p>
         ) : null}
 
-        <div className="flex gap-2">
-          <Button onClick={handleConnect} disabled={actionLoading !== null} variant="outline">
+        <div className="flex gap-2.5">
+          <Button
+            onClick={handleConnect}
+            disabled={actionLoading !== null}
+            variant="outline"
+            className="rounded-[10px] border-border text-[13.5px] font-semibold text-[#5B5876] hover:bg-secondary/70"
+          >
             {actionLoading === "connect" ? "Conectando…" : data?.connected ? "Reconectar" : "Conectar"}
           </Button>
           {data?.connected ? (
-            <Button onClick={handleRefresh} disabled={actionLoading !== null}>
+            <Button
+              onClick={handleRefresh}
+              disabled={actionLoading !== null}
+              className="rounded-[10px] bg-primary text-[13.5px] font-semibold text-primary-foreground hover:bg-primary/90"
+            >
               {actionLoading === "refresh" ? "Renovando…" : "Renovar Token"}
             </Button>
           ) : null}
         </div>
-      </CardContent>
+      </div>
     </Card>
   );
 }
