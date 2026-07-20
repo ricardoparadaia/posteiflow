@@ -20,6 +20,7 @@ import type { Post, Video } from "@/types/db";
 const FOLLOWERS_CHART_MAX_DAYS = 30;
 const QUEUE_TIMELINE_LIMIT = 8;
 const BEST_POSTS_LIMIT = 3;
+const TODAY_POSTS_LIMIT = 4;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,8 @@ type PostWithVideo = Post & { video: Video };
 interface BestPost {
   id: string;
   filename: string;
+  thumbnailUrl: string | null;
+  permalink: string | null;
   publishedAt: string | null;
   views: number;
   engagementPct: number;
@@ -84,11 +87,12 @@ async function getDashboardData() {
     .select("*, video:videos(*)")
     .gte("scheduled_datetime", dayStart.toISOString())
     .lt("scheduled_datetime", dayEnd.toISOString())
-    .order("scheduled_datetime", { ascending: true });
+    .order("scheduled_datetime", { ascending: false });
 
   const followersGainSeries = await getFollowersGainSeries(todayStr);
   const upcomingQueue = await getUpcomingQueue(todayStr, tomorrowStr);
-  const bestPosts = await getBestPosts(latestAnalytics);
+  const yesterdayStart = new Date(dayStart.getTime() - DAY_MS);
+  const bestPosts = await getBestPosts(latestAnalytics, yesterdayStart, dayStart);
 
   // Deltas honestos: só calculamos o que dá pra sustentar com o dado que já
   // temos. "Seguidores" tem base (dia anterior) pra virar %; "posts
@@ -200,41 +204,51 @@ async function getUpcomingQueue(
 }
 
 /**
- * Top posts por views, dentro dos que já têm alguma coleta de analytics —
- * reaproveita o mapa que `getLatestAnalyticsMap()` já buscou pro card "Total
- * de views" (mesma chamada, sem nova query pesada), só busca nome/data dos
- * 3 melhores.
+ * Top posts por views, só entre os publicados ONTEM (dia civil de Brasília)
+ * — diferente de "Total de views" (esse sim, todo o histórico). Recalculado
+ * a cada carregamento (a página é force-dynamic), então a janela desliza pro
+ * novo dia sozinha depois da meia-noite, sem precisar de job agendado.
+ * Reaproveita o mapa que `getLatestAnalyticsMap()` já buscou pro card "Total
+ * de views" — sem nova query de métricas, só a de quais posts são de ontem.
  */
-async function getBestPosts(latestAnalytics: Map<string, LatestAnalytics>): Promise<BestPost[]> {
-  const top = [...latestAnalytics.entries()].sort((a, b) => b[1].views - a[1].views).slice(0, BEST_POSTS_LIMIT);
-  if (top.length === 0) return [];
-
+async function getBestPosts(
+  latestAnalytics: Map<string, LatestAnalytics>,
+  yesterdayStart: Date,
+  yesterdayEnd: Date
+): Promise<BestPost[]> {
   const { data } = await supabaseAdmin
     .from("posts")
-    .select("id, published_at, video:videos(filename)")
-    .in(
-      "id",
-      top.map(([postId]) => postId)
-    );
+    .select("id, published_at, permalink, video:videos(filename, thumbnail_url)")
+    .eq("status", "publicado")
+    .gte("published_at", yesterdayStart.toISOString())
+    .lt("published_at", yesterdayEnd.toISOString());
 
   const rows = (data ?? []) as unknown as Array<{
     id: string;
     published_at: string | null;
-    video: { filename: string } | null;
+    permalink: string | null;
+    video: { filename: string; thumbnail_url: string | null } | null;
   }>;
-  const metaMap = new Map(rows.map((row) => [row.id, row]));
+  if (rows.length === 0) return [];
 
-  return top.map(([postId, metrics]) => {
-    const meta = metaMap.get(postId);
-    const engagementPct = metrics.views > 0 ? ((metrics.likes + metrics.comments + metrics.shares) / metrics.views) * 100 : 0;
-    return {
-      id: postId,
-      filename: meta?.video?.filename ?? "—",
-      publishedAt: meta?.published_at ?? null,
-      views: metrics.views,
-      engagementPct,
-    };
-  });
+  return rows
+    .map((row) => {
+      const metrics = latestAnalytics.get(row.id);
+      const views = metrics?.views ?? 0;
+      const engagementPct =
+        metrics && views > 0 ? ((metrics.likes + metrics.comments + metrics.shares) / views) * 100 : 0;
+      return {
+        id: row.id,
+        filename: row.video?.filename ?? "—",
+        thumbnailUrl: row.video?.thumbnail_url ?? null,
+        permalink: row.permalink,
+        publishedAt: row.published_at,
+        views,
+        engagementPct,
+      };
+    })
+    .sort((a, b) => b.views - a.views)
+    .slice(0, BEST_POSTS_LIMIT);
 }
 
 /** Progresso (0-100) do tempo decorrido entre a criação do post e o horário agendado. */
@@ -394,34 +408,57 @@ export default async function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Melhores posts</CardTitle>
+              <CardTitle className="text-base">Melhores posts de ontem</CardTitle>
             </CardHeader>
             <CardContent>
               {data.bestPosts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Ainda sem dados suficientes.</p>
+                <p className="text-sm text-muted-foreground">Nenhum post publicado ontem.</p>
               ) : (
                 <ul className="flex flex-col divide-y divide-border">
-                  {data.bestPosts.map((post) => (
-                    <li key={post.id} className="flex items-center gap-2.5 py-2">
-                      <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[9px] bg-muted">
-                        <VideoIcon className="h-4 w-4 text-[#B4B1C9]" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-semibold">{post.filename}</p>
-                        <p className="mt-0.5 text-[11px] text-[#8B88A3]">
-                          {post.publishedAt ? formatBrasilia(post.publishedAt, "dd/MM · HH:mm") : "—"}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-[13px] font-bold">{post.views.toLocaleString("pt-BR")}</p>
-                        <p className="text-[11px] text-[#8B88A3]">Views</p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-[13px] font-bold">{post.engagementPct.toFixed(1)}%</p>
-                        <p className="text-[11px] text-[#8B88A3]">Engaj.</p>
-                      </div>
-                    </li>
-                  ))}
+                  {data.bestPosts.map((post) => {
+                    const content = (
+                      <>
+                        <div className="relative flex h-[38px] w-[38px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-muted">
+                          {post.thumbnailUrl ? (
+                            <Image src={post.thumbnailUrl} alt="" fill className="object-cover" unoptimized />
+                          ) : (
+                            <VideoIcon className="h-4 w-4 text-[#B4B1C9]" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-semibold">{post.filename}</p>
+                          <p className="mt-0.5 text-[11px] text-[#8B88A3]">
+                            {post.publishedAt ? formatBrasilia(post.publishedAt, "dd/MM · HH:mm") : "—"}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[13px] font-bold">{post.views.toLocaleString("pt-BR")}</p>
+                          <p className="text-[11px] text-[#8B88A3]">Views</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[13px] font-bold">{post.engagementPct.toFixed(1)}%</p>
+                          <p className="text-[11px] text-[#8B88A3]">Engaj.</p>
+                        </div>
+                      </>
+                    );
+
+                    return (
+                      <li key={post.id}>
+                        {post.permalink ? (
+                          <a
+                            href={post.permalink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2.5 py-2 transition-colors hover:bg-muted/50"
+                          >
+                            {content}
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-2.5 py-2">{content}</div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </CardContent>
@@ -439,9 +476,9 @@ export default async function DashboardPage() {
               <p className="text-sm text-muted-foreground">Nenhuma publicação agendada para hoje.</p>
             ) : (
               <ul className="flex flex-col divide-y divide-border">
-                {data.todayPosts.map((post) => (
-                  <li key={post.id} className="flex items-center justify-between gap-2 py-2">
-                    <div className="flex min-w-0 items-center gap-2">
+                {data.todayPosts.slice(0, TODAY_POSTS_LIMIT).map((post) => {
+                  const videoContent = (
+                    <>
                       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[10px] bg-muted">
                         {post.video.thumbnail_url ? (
                           <Image
@@ -465,20 +502,37 @@ export default async function DashboardPage() {
                         </div>
                       </div>
                       <span className="truncate text-sm font-medium">{post.video.filename}</span>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs text-[#8B88A3]">{formatBrasilia(post.scheduled_datetime, "HH:mm")}</span>
-                      {post.status === "publicado" ? (
-                        <span className="flex items-center gap-1 rounded-full bg-[#E7F8EE] px-2.5 py-1 text-xs font-semibold text-[#16A34A]">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Publicado
-                        </span>
+                    </>
+                  );
+
+                  return (
+                    <li key={post.id} className="flex items-center justify-between gap-2 py-2">
+                      {post.status === "publicado" && post.permalink ? (
+                        <a
+                          href={post.permalink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex min-w-0 items-center gap-2 hover:opacity-80"
+                        >
+                          {videoContent}
+                        </a>
                       ) : (
-                        <Badge variant={post.status === "erro" ? "destructive" : "secondary"}>{post.status}</Badge>
+                        <div className="flex min-w-0 items-center gap-2">{videoContent}</div>
                       )}
-                    </div>
-                  </li>
-                ))}
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-xs text-[#8B88A3]">{formatBrasilia(post.scheduled_datetime, "HH:mm")}</span>
+                        {post.status === "publicado" ? (
+                          <span className="flex items-center gap-1 rounded-full bg-[#E7F8EE] px-2.5 py-1 text-xs font-semibold text-[#16A34A]">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Publicado
+                          </span>
+                        ) : (
+                          <Badge variant={post.status === "erro" ? "destructive" : "secondary"}>{post.status}</Badge>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             <Link

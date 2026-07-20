@@ -6,6 +6,7 @@ import {
   getContainerStatus,
   publishContainer,
   getPublishingLimit,
+  getMediaPermalink,
   InstagramApiError,
 } from "./instagram";
 import type { Post, Video } from "@/types/db";
@@ -105,11 +106,22 @@ export async function runSchedulerTick(): Promise<SchedulerRunSummary> {
           }
 
           const { id: mediaId } = await publishContainer(igUserId, accessToken, post.ig_container_id);
+
+          // Best-effort: se a busca do permalink falhar, não desfaz a
+          // publicação (já aconteceu de verdade) — só fica sem link na UI.
+          let permalink: string | null = null;
+          try {
+            permalink = await getMediaPermalink(mediaId, accessToken);
+          } catch (err) {
+            console.error(`Falha ao buscar permalink do post ${post.id}:`, err);
+          }
+
           await supabaseAdmin
             .from("posts")
             .update({
               status: "publicado",
               ig_media_id: mediaId,
+              permalink,
               published_at: new Date().toISOString(),
               error_message: null,
             })

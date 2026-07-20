@@ -63,6 +63,8 @@ async function getReelRows(): Promise<ReelRow[]> {
       id: post.id,
       filename: post.video.filename,
       caption: post.video.caption ?? post.video.filename,
+      thumbnailUrl: post.video.thumbnail_url ?? null,
+      permalink: post.permalink,
       publishedAt: post.published_at ?? post.scheduled_datetime,
       views,
       reach,

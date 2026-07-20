@@ -50,6 +50,7 @@ export interface Post {
   status: PostStatus;
   ig_container_id: string | null;
   ig_media_id: string | null;
+  permalink: string | null;
   error_message: string | null;
   published_at: string | null;
   created_at: string;

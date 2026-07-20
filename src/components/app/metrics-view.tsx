@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import {
   Bookmark,
   ChevronLeft,
@@ -27,6 +28,8 @@ export interface ReelRow {
   id: string;
   filename: string;
   caption: string;
+  thumbnailUrl: string | null;
+  permalink: string | null;
   publishedAt: string; // ISO
   views: number;
   reach: number;
@@ -335,24 +338,50 @@ export function MetricsView({
             <p className="text-sm text-muted-foreground">Sem posts no período.</p>
           ) : (
             <ul className="flex flex-col divide-y divide-[#F1F0F8]">
-              {topPerformers.map((post, index) => (
-                <li key={post.id} className="flex items-center gap-2.5 py-2.5">
-                  <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
-                    {index + 1}
-                  </span>
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-muted text-[#B4B1C9]">
-                    <VideoIcon className="h-4 w-4" />
+              {topPerformers.map((post, index) => {
+                const thumb = (
+                  <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-muted text-[#B4B1C9]">
+                    {post.thumbnailUrl ? (
+                      <Image src={post.thumbnailUrl} alt="" fill className="object-cover" unoptimized />
+                    ) : (
+                      <VideoIcon className="h-4 w-4" />
+                    )}
                   </div>
+                );
+                const caption = (
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[12.5px] font-semibold">{post.caption}</p>
                     <p className="mt-0.5 text-[11px] text-[#8B88A3]">{formatBrasilia(post.publishedAt, "dd MMM · HH:mm")}</p>
                   </div>
+                );
+                return (
+                <li key={post.id} className="flex items-center gap-2.5 py-2.5">
+                  <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
+                    {index + 1}
+                  </span>
+                  {post.permalink ? (
+                    <a
+                      href={post.permalink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex min-w-0 flex-1 items-center gap-2.5 hover:opacity-80"
+                    >
+                      {thumb}
+                      {caption}
+                    </a>
+                  ) : (
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                      {thumb}
+                      {caption}
+                    </div>
+                  )}
                   <div className="shrink-0 text-right">
                     <p className="text-[13px] font-bold">{post.views.toLocaleString("pt-BR")}</p>
                     <p className="text-[10.5px] text-[#8B88A3]">views</p>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </Card>
@@ -429,12 +458,34 @@ export function MetricsView({
                     key={row.id}
                     className="grid grid-cols-[2.2fr_1fr_0.9fr_0.9fr_0.8fr_0.8fr_1fr_1fr_1fr_1fr] items-center gap-2.5 border-b border-[#F1F0F8] px-2 py-3"
                   >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-muted text-[#B4B1C9]">
-                        <VideoIcon className="h-4 w-4" />
+                    {row.permalink ? (
+                      <a
+                        href={row.permalink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex min-w-0 items-center gap-2.5 hover:opacity-80"
+                      >
+                        <div className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-muted text-[#B4B1C9]">
+                          {row.thumbnailUrl ? (
+                            <Image src={row.thumbnailUrl} alt="" fill className="object-cover" unoptimized />
+                          ) : (
+                            <VideoIcon className="h-4 w-4" />
+                          )}
+                        </div>
+                        <p className="truncate text-[13px] font-semibold">{row.caption}</p>
+                      </a>
+                    ) : (
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-muted text-[#B4B1C9]">
+                          {row.thumbnailUrl ? (
+                            <Image src={row.thumbnailUrl} alt="" fill className="object-cover" unoptimized />
+                          ) : (
+                            <VideoIcon className="h-4 w-4" />
+                          )}
+                        </div>
+                        <p className="truncate text-[13px] font-semibold">{row.caption}</p>
                       </div>
-                      <p className="truncate text-[13px] font-semibold">{row.caption}</p>
-                    </div>
+                    )}
                     <p className="text-[12.5px] text-[#5B5876]">{formatBrasilia(row.publishedAt, "dd MMM HH:mm")}</p>
                     <p className="text-[12.5px] font-semibold">{row.views.toLocaleString("pt-BR")}</p>
                     <p className="text-[12.5px] text-[#5B5876]">{row.reach.toLocaleString("pt-BR")}</p>

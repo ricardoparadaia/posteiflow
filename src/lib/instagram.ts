@@ -175,6 +175,15 @@ export async function publishContainer(
   );
 }
 
+/** Link permanente do Reel no Instagram (ex: instagram.com/reel/XXXX) — buscado uma vez logo após publicar, nunca reconstruído localmente (o shortcode não deriva do media id). */
+export async function getMediaPermalink(mediaId: string, accessToken: string): Promise<string | null> {
+  const res = await igRequest<{ permalink?: string }>(`${GRAPH_VERSION}/${mediaId}`, {
+    fields: "permalink",
+    access_token: accessToken,
+  });
+  return res.permalink ?? null;
+}
+
 /** Uso atual da janela rolante de 24h (limite de 50 publicações). */
 export async function getPublishingLimit(
   igUserId: string,
