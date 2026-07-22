@@ -85,6 +85,7 @@ async function getDashboardData() {
   const { data: todayPosts } = await supabaseAdmin
     .from("posts")
     .select("*, video:videos(*)")
+    .eq("status", "publicado")
     .gte("scheduled_datetime", dayStart.toISOString())
     .lt("scheduled_datetime", dayEnd.toISOString())
     .order("scheduled_datetime", { ascending: false });
@@ -106,7 +107,7 @@ async function getDashboardData() {
       ? (followersGainedToday / previousFollowersCount) * 100
       : null;
 
-  const postsPublishedToday = (todayPosts ?? []).filter((p) => p.status === "publicado").length;
+  const postsPublishedToday = (todayPosts ?? []).length;
   const viewsToday = todayStats?.total_views ?? null;
 
   const postsWithAnalytics = latestAnalytics.size;
