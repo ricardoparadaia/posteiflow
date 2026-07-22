@@ -3,7 +3,6 @@ import Link from "next/link";
 import { CheckCircle2, Circle, Users, Video as VideoIcon, Eye, Heart, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/app/stat-card";
 import { FollowersGainChart, type FollowersGainPoint } from "@/components/app/followers-gain-chart";
@@ -19,7 +18,7 @@ import type { Post, Video } from "@/types/db";
 
 const FOLLOWERS_CHART_MAX_DAYS = 30;
 const QUEUE_TIMELINE_LIMIT = 8;
-const BEST_POSTS_LIMIT = 3;
+const BEST_POSTS_LIMIT = 5;
 const TODAY_POSTS_LIMIT = 4;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -73,15 +72,6 @@ async function getDashboardData() {
   const latestAnalytics = await getLatestAnalyticsMap();
   const totals = sumMetrics(latestAnalytics.values());
 
-  const { data: nextPost } = await supabaseAdmin
-    .from("posts")
-    .select("*, video:videos(*)")
-    .in("status", ["pendente", "processando"])
-    .gte("scheduled_datetime", new Date().toISOString())
-    .order("scheduled_datetime", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
   const { data: todayPosts } = await supabaseAdmin
     .from("posts")
     .select("*, video:videos(*)")
@@ -127,7 +117,6 @@ async function getDashboardData() {
     totalViews: totals.views,
     viewsToday,
     engagementRate,
-    nextPost: (nextPost as PostWithVideo | null) ?? null,
     todayPosts: (todayPosts as PostWithVideo[] | null) ?? [],
     followersGainSeries,
     upcomingQueue,
@@ -252,30 +241,8 @@ async function getBestPosts(
     .slice(0, BEST_POSTS_LIMIT);
 }
 
-/** Progresso (0-100) do tempo decorrido entre a criação do post e o horário agendado. */
-function computeCountdown(createdAt: string, scheduledAt: string): { percent: number; label: string } {
-  const created = new Date(createdAt).getTime();
-  const scheduled = new Date(scheduledAt).getTime();
-  const now = Date.now();
-  const total = scheduled - created;
-  const percent = total > 0 ? Math.min(100, Math.max(0, ((now - created) / total) * 100)) : 100;
-  return { percent, label: formatRemaining(scheduled - now) };
-}
-
-function formatRemaining(ms: number): string {
-  if (ms <= 0) return "Publicando a qualquer momento";
-  const totalMinutes = Math.round(ms / 60_000);
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-  const minutes = totalMinutes % 60;
-  if (days > 0) return `Faltam ${days}d ${hours}h`;
-  if (hours > 0) return `Faltam ${hours}h ${minutes}m`;
-  return `Faltam ${minutes}m`;
-}
-
 export default async function DashboardPage() {
   const data = await getDashboardData();
-  const countdown = data.nextPost ? computeCountdown(data.nextPost.created_at, data.nextPost.scheduled_datetime) : null;
   const user = await getAuthUser();
   const greetingName = getDisplayName(user);
 
@@ -361,110 +328,63 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <div className="flex flex-col gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Próxima postagem agendada</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data.nextPost && countdown ? (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-muted">
-                      {data.nextPost.video.thumbnail_url ? (
-                        <Image
-                          src={data.nextPost.video.thumbnail_url}
-                          alt={data.nextPost.video.filename}
-                          fill
-                          className="object-cover"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center">
-                          <VideoIcon className="h-[18px] w-[18px] text-[#B4B1C9]" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{data.nextPost.video.filename}</p>
-                      <p className="mt-0.5 text-xs text-[#8B88A3]">{formatBrasilia(data.nextPost.scheduled_datetime, "PPPp")}</p>
-                      <span className="mt-1.5 inline-block rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-bold text-primary">
-                        Reels
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-xs text-[#75718F]">{countdown.label}</p>
-                    <Progress value={countdown.percent} className="h-2" />
-                  </div>
-                  <Button asChild variant="secondary" size="sm" className="w-full border border-border">
-                    <Link href="/queue">Ver na fila</Link>
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Nenhuma postagem agendada.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Melhores posts de ontem</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data.bestPosts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum post publicado ontem.</p>
-              ) : (
-                <ul className="flex flex-col divide-y divide-border">
-                  {data.bestPosts.map((post) => {
-                    const content = (
-                      <>
-                        <div className="relative flex h-[38px] w-[38px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-muted">
-                          {post.thumbnailUrl ? (
-                            <Image src={post.thumbnailUrl} alt="" fill className="object-cover" unoptimized />
-                          ) : (
-                            <VideoIcon className="h-4 w-4 text-[#B4B1C9]" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-semibold">{post.filename}</p>
-                          <p className="mt-0.5 text-[11px] text-[#8B88A3]">
-                            {post.publishedAt ? formatBrasilia(post.publishedAt, "dd/MM · HH:mm") : "—"}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-[13px] font-bold">{post.views.toLocaleString("pt-BR")}</p>
-                          <p className="text-[11px] text-[#8B88A3]">Views</p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-[13px] font-bold">{post.engagementPct.toFixed(1)}%</p>
-                          <p className="text-[11px] text-[#8B88A3]">Engaj.</p>
-                        </div>
-                      </>
-                    );
-
-                    return (
-                      <li key={post.id}>
-                        {post.permalink ? (
-                          <a
-                            href={post.permalink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2.5 py-2 transition-colors hover:bg-muted/50"
-                          >
-                            {content}
-                          </a>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Melhores posts de ontem</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.bestPosts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum post publicado ontem.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border">
+                {data.bestPosts.map((post) => {
+                  const content = (
+                    <>
+                      <div className="relative flex h-[38px] w-[38px] shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-muted">
+                        {post.thumbnailUrl ? (
+                          <Image src={post.thumbnailUrl} alt="" fill className="object-cover" unoptimized />
                         ) : (
-                          <div className="flex items-center gap-2.5 py-2">{content}</div>
+                          <VideoIcon className="h-4 w-4 text-[#B4B1C9]" />
                         )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold">{post.filename}</p>
+                        <p className="mt-0.5 text-[11px] text-[#8B88A3]">
+                          {post.publishedAt ? formatBrasilia(post.publishedAt, "dd/MM · HH:mm") : "—"}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-[13px] font-bold">{post.views.toLocaleString("pt-BR")}</p>
+                        <p className="text-[11px] text-[#8B88A3]">Views</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-[13px] font-bold">{post.engagementPct.toFixed(1)}%</p>
+                        <p className="text-[11px] text-[#8B88A3]">Engaj.</p>
+                      </div>
+                    </>
+                  );
+
+                  return (
+                    <li key={post.id}>
+                      {post.permalink ? (
+                        <a
+                          href={post.permalink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2.5 py-2 transition-colors hover:bg-muted/50"
+                        >
+                          {content}
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-2.5 py-2">{content}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[3fr_7fr]">
