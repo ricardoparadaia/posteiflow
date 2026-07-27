@@ -10,6 +10,7 @@ export interface AnalyticsRunSummary {
   skipped?: string;
   collected: number;
   errors: number;
+  accountStatsError?: string;
 }
 
 /** Coleta métricas (views/likes/comments/shares) de todos os Reels publicados recentemente. */
@@ -59,7 +60,17 @@ export async function collectAnalyticsTick(): Promise<AnalyticsRunSummary> {
     }
   }
 
-  await updateTodayAccountStats(account.ig_user_id, account.access_token);
+  try {
+    await updateTodayAccountStats(account.ig_user_id, account.access_token);
+  } catch (err) {
+    // Isolado do loop de métricas por post acima: uma falha aqui (ex: Graph
+    // API instável) não deve mascarar coletas que já tinham sucedido, mas
+    // precisa ficar visível — antes falhava silenciosamente (upsert com
+    // erro ignorado) e o gráfico de seguidores parava de andar sem nenhum
+    // log indicando o motivo.
+    summary.accountStatsError = err instanceof InstagramApiError ? err.message : String(err);
+    console.error("Erro ao atualizar account_stats_daily:", err);
+  }
 
   return summary;
 }
@@ -112,7 +123,7 @@ async function updateTodayAccountStats(igUserId: string, accessToken: string) {
     }
   }
 
-  await supabaseAdmin.from("account_stats_daily").upsert(
+  const { error: upsertError } = await supabaseAdmin.from("account_stats_daily").upsert(
     {
       stat_date: todayStr,
       followers_count: info.followersCount,
@@ -128,4 +139,8 @@ async function updateTodayAccountStats(igUserId: string, accessToken: string) {
     },
     { onConflict: "stat_date" }
   );
+
+  if (upsertError) {
+    throw new Error(`Erro ao salvar account_stats_daily: ${upsertError.message}`);
+  }
 }
